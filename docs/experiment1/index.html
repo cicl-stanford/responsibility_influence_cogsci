@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Experiment</title>
+        <!-- include the jQuery and jQuery UI scripts -->
+<script src="https://code.jquery.com/jquery-2.1.1.js"></script>
+<script src="https://code.jquery.com/ui/1.11.1/jquery-ui.js"></script>
+                
+<!-- plus a jQuery UI theme, here I use "flick" -->
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.10.4/themes/flick/jquery-ui.css">
+        
+        <link rel="stylesheet" href="css/jspsych.css" />
+        <link rel="stylesheet" href="css/jquery-ui-edit.css" />
+        <link rel="stylesheet" href="css/jquery-ui-slider-pips-edit.css" />
+       
+        <script src="js/jquery.min.js"></script>
+        <script src="js/jquery-ui.min.js"></script>
+        <script src="js/jquery-ui-slider-pips.js"></script>
+        <script src="js/timeme.min.js"></script>
+        <script src="js/jspsych.js"></script>
+        <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe@0.3"></script>
+
+        <script src="js/plugin-preload.js"></script>
+        <script src="js/plugin-instructions.js"></script>
+        <script src="js/plugin-html-button-response.js"></script>
+        <script src="js/plugin-responsibility.js"></script>
+        <script src="js/plugin-comprehension-check.js"></script>
+        <script src="js/plugin-survey-html-form.js"></script>
+        <script src="js/plugin-responsibility.js"></script>
+
+        <script src="instructions/instructions.js"></script>
+        <script src="js/feedback-demographics.js"></script>
+        <script src="js/utils.js"></script>
+        <script src="js/trial_info.js"></script>
+
+        <style>
+            /* Default button style */
+            .jspsych-btn {
+                padding: 10px 20px;
+                margin-top: 2em;
+                font-size: 16px;
+            }
+        </style>
+    </head>
+
+    <body></body>
+
+    <script>
+        let experiment_id = '';
+
+        TimeMe.initialize({
+            currentPageName: "page",
+            idleTimeoutInSeconds: 15
+        });
+
+        // -----------------------------------------------------
+        // Initialize jsPsych
+        // -----------------------------------------------------
+        const jsPsych = initJsPsych({
+            show_progress_bar: true,
+            auto_update_progress_bar: false,
+            on_finish: () => {
+                document.getElementById("jspsych-content").innerHTML =
+                    '<div style="margin: auto;"> <p>Thank you for participating in this experiment!</p>';
+            }
+        });
+
+        let preload_trial = {
+            type: jsPsychPreload,
+            images: instruction_images.concat(trial_images)
+        };
+
+        // -----------------------------------------------------
+        // Instructions and Comprehension
+        // -----------------------------------------------------
+        const instructions = {
+            type: jsPsychInstructions,
+            pages: instruction_pages,
+            show_clickable_nav: true,
+            allow_keys: false,
+            on_finish: function () {
+        jsPsych.setProgressBar(0.1);  
+    }
+            
+        };
+
+        const comprehension = {
+            type: jsPsychComprehensionCheck,
+            questions: [
+                {
+                    prompt: "Bryce was able to see Taylor's vote before casting their own vote.",
+                    options: ["True", "False"],
+                    horizontal: true,
+                    required: true,
+                    name: "Q1"
+                },
+                {
+                    prompt: "Brook was able to see Robin's vote before casting their own vote.",
+                    options: ["True", "False"],
+                    horizontal: true,
+                    required: true,
+                    name: "Q2"
+                },
+                {
+                    prompt: "Robin was not aware that their vote would be visible to Whitney and Brook.",
+                    options: ["True", "False"],
+                    horizontal: true,
+                    required: true,
+                    name: "Q3"
+                },
+                {
+                    prompt: "Robin was able to see Whitney and Brook's votes before casting their own vote.",
+                    options: ["True", "False"],
+                    horizontal: true,
+                    required: true,
+                    name: "Q4"
+                },
+                {
+                    prompt: "The proposal passed.",
+                    options: ["True", "False"],
+                    horizontal: true,
+                    required: true,
+                    name: "Q5"
+                }
+            ],
+            on_finish: function (data) {
+                let correct_answers = {
+                    Q1: "True",
+                    Q2: "True",
+                    Q3: "False",
+                    Q4: "False",
+                    Q5: "True",
+                };
+                let responses = data.response;
+                data.correct = Object.keys(correct_answers).every(
+                    key => responses[key] === correct_answers[key]
+                );
+            }
+        };
+
+        const fail_comprehension = {
+            timeline: [
+                {
+                    type: jsPsychHtmlButtonResponse,
+                    stimulus:
+                        "Unfortunately, you missed some of the comprehension questions.</p> <p> Please review the instructions again.",
+                    choices: ["Review"]
+                }
+            ],
+            conditional_function: function () {
+                var data = jsPsych.data.get().last(1).values()[0];
+                return !data.correct;
+            }
+        };
+
+        const loop_node = {
+            timeline: [instructions, comprehension, fail_comprehension],
+            loop_function: function (data) {
+                var data = jsPsych.data.get().last(1).values()[0];
+                return !data.correct;
+            },
+           
+        };
+
+        // -----------------------------------------------------
+        // Experiment Trials
+        // -----------------------------------------------------
+        const trials_start = {
+            type: jsPsychHtmlButtonResponse,
+            stimulus: start_prompt,
+            margin_vertical: "1em",
+            choices: ["Start"],
+            on_start: function () {
+        jsPsych.setProgressBar(0.2);  
+    }
+        };
+
+        let num_trials = trial_info.length;
+        let trial_order = shuffle(num_trials);
+        console.log(trial_order);
+
+        const trials = {
+            timeline_variables: trial_info,
+            timeline: [
+                {
+                    type: jsPsychResponsibility,
+                    trial: jsPsych.timelineVariable("trial"),
+                    title: function () {
+                        var title =
+                            "Proposal " +
+                            (trial_order.indexOf(jsPsych.timelineVariable("trial") - 1) + 1) +
+                            " of " +
+                            num_trials;
+                        return title;
+                    },
+                    outcome: jsPsych.timelineVariable("outcome"),
+                    people: jsPsych.timelineVariable("people")
+                }
+            ],
+            sample: {
+                type: "custom",
+                fn: function (t) {
+                    return trial_order;
+                }
+            },
+            on_finish: function () {
+                let current_progress = jsPsych.getProgressBarCompleted();
+                let progress_increment = 0.8 / num_trials; // 
+                jsPsych.setProgressBar(current_progress + progress_increment);
+            }
+        };
+
+         // -----------------------------------------------------
+         // Feedback and Demographic Info
+         // -----------------------------------------------------
+         // Located in js/feedback-demographics.js
+ 
+         // -----------------------------------------------------
+         // Save Data
+         // -----------------------------------------------------
+         const prolific_id = jsPsych.data.getURLVariable('PROLIFIC_PID');
+ 
+         const save_trial_data = {
+             type: jsPsychPipe,
+             action: "save",
+             experiment_id: experiment_id,
+             filename: `${prolific_id}_trials.csv`,
+             data_string: () => {
+                 const data = jsPsych.data.get().filter({ trial_type: "responsibility" }).values();
+                 let rows = [];
+                 for (let key in data) {
+                     const { trial, response } = data[key];
+                     for (const name in response) {
+                         rows.push([prolific_id, trial, name, response[name]].join(","));
+                     }
+                 }
+                 const header = "id,trial,name,response";
+                 const trials_csv = [header, ...rows].join("\n");
+                 console.log(trials_csv);
+                 return trials_csv;
+             }
+         };
+ 
+         const save_participant_data = {
+             type: jsPsychPipe,
+             action: "save",
+             experiment_id: experiment_id,
+             filename: `${prolific_id}_participant.csv`,
+             data_string: () => {
+                 const time = TimeMe.getTimeOnPageInSeconds('page');
+                 const data = jsPsych.data.get().filter({trial_type: 'survey-html-form'}).values()[0].response;
+                 const participant = [
+                     prolific_id,
+                     `"${data.feedback || ''}"`,
+                     data.age || "",
+                     data.gender || "",
+                     data.race || "",
+                     `"${data.ethnicity || ''}"`,
+                     time,
+                 ].join(",");
+                 const header = "id,feedback,age,gender,race,ethnicity,time";
+                 const participant_csv = header + "\n" + participant;
+                 console.log("participant_csv: ", participant_csv);
+                 return participant_csv;
+             }
+         };
+ 
+         // -----------------------------------------------------
+         // Compile and Run Timeline
+         // -----------------------------------------------------
+         var timeline = [];
+         timeline.push(preload_trial);
+         timeline.push(loop_node);
+         timeline.push(trials_start);
+         timeline.push(trials);
+         timeline.push(feedback_demographics);
+         timeline.push(save_trial_data);
+         timeline.push(save_participant_data);
+ 
+         jsPsych.run(timeline);
+     </script>
+</html>
