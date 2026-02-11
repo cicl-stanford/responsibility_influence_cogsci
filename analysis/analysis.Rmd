@@ -1,0 +1,662 @@
+---
+title: "Responsibility for influencing others"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+---
+# Setup
+```{r setup, include = FALSE, message = FALSE, warning = FALSE}
+require(knitr)
+library(ggstatsplot)
+library(DT)
+library(scales)
+library(patchwork)
+library(jpeg)
+library(ggtext)
+library(tidyverse)
+library(brms)
+library(cowplot)
+library(Hmisc)
+library(emmeans)
+library(tidybayes)
+
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+theme_set(theme_classic() + theme(text = element_text(size = 14)))
+
+options(dplyr.summarise.inform = FALSE)
+options(xtable.floating = FALSE)
+options(xtable.timestamp = "")
+
+set.seed(1)
+
+load_exp_data <- function(data_dir, docs_dir = NULL) {
+  trials_path <- file.path(data_dir, "trials.csv")
+  stopifnot(file.exists(trials_path))
+
+  df <- read_csv(trials_path, show_col_types = FALSE)
+
+  if (!is.null(docs_dir)) {
+    info_path <- file.path(docs_dir, "trial_info.csv")
+    if (file.exists(info_path)) {
+      trial_info <- read_csv(info_path, show_col_types = FALSE)
+
+      join_keys <- intersect(c("trial", "name"), intersect(names(df), names(trial_info)))
+      if (length(join_keys) > 0) {
+        df <- df %>% left_join(trial_info, by = join_keys)
+      }
+    }
+  }
+
+  df
+}
+
+
+out_dir <- "../figures"
+
+paths_exp1 <- list(
+  data_dir    = "../data/experiment1",
+  figures_dir = "../figures/experiment1",
+  docs_dir    = "../docs/experiment1"
+)
+
+paths_exp2 <- list(
+  data_dir    = "../data/experiment2",
+  figures_dir = "../figures/experiment2",
+  docs_dir    = "../docs/experiment2"
+)
+
+paths_exp3 <- list(
+  data_dir    = "../data/experiment3",
+  figures_dir = "../figures/experiment3",
+  docs_dir    = "../docs/experiment3"
+)
+
+response_data_exp1 <- load_exp_data(paths_exp1$data_dir, paths_exp1$docs_dir)
+response_data_exp2 <- load_exp_data(paths_exp2$data_dir, paths_exp2$docs_dir)
+response_data_exp3 <- load_exp_data(paths_exp3$data_dir, paths_exp3$docs_dir)
+
+```
+
+# Responsibility judgments by role
+```{r}
+ROLE_BREAKS <- c(
+  "root (with knowledge)",
+  "root (without knowledge)",
+  "dependent",
+  "independent"
+)
+
+ROLE_COLORS <- c(
+  "root (with knowledge)"    = "#9C7BD9",
+  "root (without knowledge)" = "#C6B5EE",
+  "dependent"                = "#F7C948",
+  "independent"              = "#4FC3F7"
+)
+
+
+make_role_barplot_raw <- function(df,
+                                  title = "Mean Responsibility Judgments",
+                                  subtitle = NULL,
+                                  subtitle_hjust = 0.5,
+                                  y_max = 10.5) {
+
+  df <- df %>% filter(!is.na(role_lbl), !is.na(response))
+
+  ggplot(df, aes(x = role_lbl, y = response, fill = role_lbl)) +
+    stat_summary(fun = mean, geom = "bar", width = 0.75) +
+    stat_summary(fun.data = mean_cl_boot, geom = "linerange",
+                 color = "black", linewidth = 2) +
+    scale_fill_manual(
+      values = ROLE_COLORS,
+      breaks = ROLE_BREAKS,
+      drop = TRUE
+    ) +
+    scale_x_discrete(drop = TRUE) +
+    guides(
+      fill = guide_legend(
+        ncol = 4,
+        byrow = TRUE,
+        keywidth  = unit(1.2, "cm"),
+        keyheight = unit(1.2, "cm")
+      )
+    ) +
+    scale_y_continuous(
+      limits = c(0, y_max),
+      breaks = seq(0, y_max, by = 1),
+      expand = c(0, 0)
+    ) +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      y = "Responsibility"
+    ) +
+    theme_minimal(base_size = 20) +
+    theme(
+      legend.position = "bottom",
+      legend.spacing.x = unit(0.8, "cm"),
+      legend.text = element_text(
+        size = 28,
+        margin = margin(l = 0.4, r = 2, unit = "cm")
+      ),
+      legend.title = element_blank(),
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.2),
+      axis.ticks = element_line(color = "black"),
+      axis.ticks.length = unit(0.2, "cm"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
+      panel.grid.minor.y = element_line(color = "grey90", linewidth = 0.3),
+      axis.text.y = element_text(size = 25),
+      axis.title.y = element_text(size = 25),
+      plot.title = element_text(size = 32, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 28,color = "grey35",hjust = subtitle_hjust)
+    )
+}
+
+
+make_plot_exp1 <- function(response_data) {
+  df <- response_data %>%
+    filter(!is.na(role), !is.na(response)) %>%
+    mutate(
+      role_lbl = case_when(
+        role == "root" & knows == TRUE  ~ "root (with knowledge)",
+        role == "root" & knows == FALSE ~ "root (without knowledge)",
+        role == "dependent"             ~ "dependent",
+        role == "independent"           ~ "independent",
+        TRUE ~ NA_character_
+      ),
+      role_lbl = factor(role_lbl, levels = ROLE_BREAKS)
+    )
+
+  make_role_barplot_raw(
+    df,
+    title = "A. Experiment 1",
+    subtitle = "Visible voting",
+    subtitle_hjust = 0.51
+  )
+}
+
+make_plot_exp2 <- function(response_data) {
+  df <- response_data %>%
+    filter(!is.na(role), !is.na(response)) %>%
+    mutate(
+      role_lbl = case_when(
+        role == "root"        ~ "root (without knowledge)",
+        role == "dependent"   ~ "dependent",
+        role == "independent" ~ "independent",
+        TRUE ~ NA_character_
+      ),
+      role_lbl = factor(role_lbl, levels = ROLE_BREAKS)
+    )
+
+  make_role_barplot_raw(
+    df,
+    title = "B. Experiment 2",
+    subtitle = "Mechanical system",
+    subtitle_hjust = 0.68
+  )
+}
+
+make_plot_exp3 <- function(response_data) {
+  df <- response_data %>%
+    filter(!is.na(role), !is.na(response)) %>%
+    mutate(
+      role_lbl = case_when(
+        role == "mentor"      ~ "root (with knowledge)",
+        role == "mentee"      ~ "dependent",
+        role == "independent" ~ "independent",
+        TRUE ~ NA_character_
+      ),
+      role_lbl = factor(role_lbl, levels = ROLE_BREAKS)
+    )
+
+  make_role_barplot_raw(
+    df,
+    title = "C. Experiment 3",
+    subtitle = "Advised voting",
+    subtitle_hjust = 0.545
+  )
+}
+
+
+p1 <- make_plot_exp1(response_data_exp1) +
+  theme(
+    legend.position = "bottom",
+    legend.justification = c(-0.3, 0)
+  )
+p2 <- make_plot_exp2(response_data_exp2) + theme(legend.position = "none")
+p3 <- make_plot_exp3(response_data_exp3) + theme(legend.position = "none")
+
+patched <- (p1 | p2 | p3) +
+  plot_layout(widths = c(4, 3, 3))
+
+patched
+```
+```{r}
+ggsave(
+  filename = file.path(out_dir, "results.pdf"),
+  plot = patched,
+  width = 25,
+  height = 8,
+  dpi = 300
+)
+```
+# Responsibility for root causes by follower proportion
+```{r}
+PROP_LEVELS <- c("0%", "50%", "100%")
+
+PROP_COLORS <- c(
+  "0%"   = "#FFF7CC",
+  "50%"  = "#FFD84D",
+  "100%" = "#F4A261"
+)
+
+as_num_safely <- function(x) {
+  suppressWarnings(as.numeric(gsub("%", "", as.character(x))))
+}
+
+df_e1 <- response_data_exp1 %>%
+  filter(role == "root", !is.na(response), !is.na(follow_proportion)) %>%
+  mutate(
+    fp = as_num_safely(follow_proportion),
+    prop_lbl = case_when(
+      fp == 0   ~ "0%",
+      fp == 0.5 ~ "50%",
+      fp == 1   ~ "100%",
+      TRUE ~ NA_character_
+    ),
+    exp = "A. Experiment 1"
+  ) %>%
+  filter(!is.na(prop_lbl)) %>%
+  transmute(exp, prop_lbl, response)
+
+df_e2 <- response_data_exp2 %>%
+  filter(role == "root", !is.na(response), !is.na(follow_proportion)) %>%
+  mutate(
+    fp = as_num_safely(follow_proportion),
+    prop_lbl = case_when(
+      fp == 0   ~ "0%",
+      fp == 0.5 ~ "50%",
+      fp == 1   ~ "100%",
+      TRUE ~ NA_character_
+    ),
+    exp = "B. Experiment 2"
+  ) %>%
+  filter(!is.na(prop_lbl)) %>%
+  transmute(exp, prop_lbl, response)
+
+df_e3 <- response_data_exp3 %>%
+  filter(role == "mentor", !is.na(response), !is.na(follow_proportion)) %>%
+  mutate(
+    fp = as_num_safely(follow_proportion),
+    prop_lbl = case_when(
+      fp == 0   ~ "0%",
+      fp == 50  ~ "50%",
+      fp == 100 ~ "100%",
+      TRUE ~ NA_character_
+    ),
+    exp = "C. Experiment 3"
+  ) %>%
+  filter(!is.na(prop_lbl)) %>%
+  transmute(exp, prop_lbl, response)
+
+
+make_prop_barplot_raw <- function(df,
+                                   title,
+                                   subtitle = NULL,
+                                   subtitle_hjust = 0.5,
+                                   show_legend = FALSE) {
+
+  df <- df %>%
+    mutate(prop_lbl = factor(prop_lbl, levels = PROP_LEVELS)) %>%
+    filter(!is.na(prop_lbl), !is.na(response))
+
+  prop_counts <- df %>% count(prop_lbl, name = "n_trials")
+
+  p <- ggplot(df, aes(x = prop_lbl, y = response, fill = prop_lbl)) +
+    stat_summary(fun = mean, geom = "bar", width = 0.75) +
+    stat_summary(
+      fun.data = mean_cl_boot,
+      geom = "linerange",
+      color = "black",
+      linewidth = 2
+    ) +
+    geom_text(
+      data = prop_counts,
+      aes(x = prop_lbl, y = 10.5, label = paste0("n=", n_trials)),
+      inherit.aes = FALSE,
+      vjust = -0.4,
+      size = 5
+    ) +
+    scale_fill_manual(
+      values = PROP_COLORS,
+      breaks = PROP_LEVELS,
+      limits = PROP_LEVELS,
+      drop = TRUE
+    ) +
+    scale_x_discrete(drop = TRUE) +
+    guides(
+      fill = guide_legend(
+        ncol = 3,
+        byrow = TRUE,
+        keywidth  = unit(1.2, "cm"),
+        keyheight = unit(1.2, "cm")
+      )
+    ) +
+    scale_y_continuous(
+      limits = c(0, 10.5),
+      breaks = seq(0, 10.5, by = 1),
+      minor_breaks = seq(0, 10.5, by = 0.5),   
+      expand = c(0, 0)
+    ) +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      y = "Responsibility",
+      x = NULL,
+      fill = "Follower Proportion:        "
+    ) +
+    theme_minimal(base_size = 20) +
+    theme(
+      legend.position = if (show_legend) "bottom" else "none",
+      legend.spacing.x = unit(0.8, "cm"),
+      legend.text = element_text(
+        size = 30,
+        margin = margin(l = 0.4, r = 2, unit = "cm")
+      ),
+      legend.title = element_text(size = 28),
+
+      axis.text.x  = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+
+      axis.line = element_line(color = "black", linewidth = 0.2),
+      axis.ticks = element_line(color = "black"),
+      axis.ticks.length = unit(0.2, "cm"),
+
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
+      panel.grid.minor.y = element_line(color = "grey90", linewidth = 0.3),
+
+      axis.text.y  = element_text(size = 25),
+      axis.title.y = element_text(size = 25),
+
+      plot.title = element_text(size = 35, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(
+        size = 28,
+        color = "grey35",
+        hjust = subtitle_hjust
+      )
+    )
+
+  p
+}
+
+p1 <- make_prop_barplot_raw(
+  df_e1,
+  "A. Experiment 1",
+  subtitle = "Visible voting",
+  subtitle_hjust = 0.49
+)
+
+p2 <- make_prop_barplot_raw(
+  df_e2,
+  "B. Experiment 2",
+  subtitle = "Mechanical system",
+  subtitle_hjust = 0.62,
+  show_legend = TRUE
+) +
+  theme(
+    legend.position = "bottom",
+    legend.justification = "center"
+  )
+
+p3 <- make_prop_barplot_raw(
+  df_e3,
+  "C. Experiment 3",
+  subtitle = "Advised voting",
+  subtitle_hjust = 0.52
+)
+
+
+patched_follow_prop <- (p1 | p2 | p3) +
+  plot_layout(widths = c(3, 3, 3))   
+
+patched_follow_prop
+```
+```{r}
+ggsave(
+  filename = file.path(out_dir, "results_proportion.pdf"),
+  plot = patched_follow_prop,
+  width = 25,
+  height = 8,
+  dpi = 300
+)
+
+```
+
+# Proportion
+```{r}
+boot_mean_ci <- function(x, R = 2000, conf = 0.95) {
+  x <- x[is.finite(x)]
+  if (length(x) == 0) return(tibble(mean = NA_real_, ci_low = NA_real_, ci_high = NA_real_, n = 0))
+  if (length(x) == 1) return(tibble(mean = mean(x), ci_low = mean(x), ci_high = mean(x), n = 1))
+
+  boot_means <- replicate(R, mean(sample(x, replace = TRUE)))
+  alpha <- (1 - conf) / 2
+
+  tibble(
+    mean = mean(x),
+    ci_low = unname(quantile(boot_means, probs = alpha)),
+    ci_high = unname(quantile(boot_means, probs = 1 - alpha)),
+    n = length(x)
+  )
+}
+
+summarise_prop_stats <- function(df, exp_label) {
+  df %>%
+    mutate(prop_lbl = factor(prop_lbl, levels = PROP_LEVELS)) %>%
+    group_by(prop_lbl) %>%
+    summarise(tmp = list(boot_mean_ci(response)), .groups = "drop") %>%
+    tidyr::unnest(tmp) %>%
+    mutate(exp = exp_label) %>%
+    select(exp, prop_lbl, n, mean, ci_low, ci_high)
+}
+
+prop_stats_e1 <- summarise_prop_stats(df_e1, "Experiment 1")
+prop_stats_e2 <- summarise_prop_stats(df_e2, "Experiment 2")
+prop_stats_e3 <- summarise_prop_stats(df_e3, "Experiment 3")
+
+prop_stats_all <- bind_rows(prop_stats_e1, prop_stats_e2, prop_stats_e3)
+
+prop_stats_all
+
+prop_stats_all %>%
+  mutate(
+    report = sprintf("M = %.2f, 95%% CI [%.2f, %.2f] (n=%d)", mean, ci_low, ci_high, n)
+  ) %>%
+  select(exp, prop_lbl, report)
+```
+
+# Means and bootstrap 95% CIs by role and experiment
+```{r}
+ROLE_BREAKS <- c(
+  "root (with knowledge)",
+  "root (without knowledge)",
+  "dependent",
+  "independent"
+)
+
+
+boot_mean_ci <- function(x, conf = 0.95) {
+  x <- x[!is.na(x)]
+  if (length(x) == 0) return(c(lower = NA_real_, upper = NA_real_))
+  ci <- Hmisc::smean.cl.boot(x, conf.int = conf)
+  c(lower = unname(ci["Lower"]), upper = unname(ci["Upper"]))
+}
+
+df_exp1_min <- response_data_exp1 %>%
+  filter(!is.na(role), !is.na(response)) %>%
+  mutate(
+    experiment = "Experiment 1",
+    role_lbl = case_when(
+      role == "root" & knows == TRUE  ~ "root (with knowledge)",
+      role == "root" & knows == FALSE ~ "root (without knowledge)",
+      role == "dependent"             ~ "dependent",
+      role == "independent"           ~ "independent",
+      TRUE ~ NA_character_
+    ),
+    role_lbl = factor(role_lbl, levels = ROLE_BREAKS)
+  ) %>%
+  filter(!is.na(role_lbl)) %>%
+  select(experiment, role_lbl, response)
+
+df_exp2_min <- response_data_exp2 %>%
+  filter(!is.na(role), !is.na(response)) %>%
+  mutate(
+    experiment = "Experiment 2",
+    role_lbl = case_when(
+      role == "root"        ~ "root (without knowledge)",
+      role == "dependent"   ~ "dependent",
+      role == "independent" ~ "independent",
+      TRUE ~ NA_character_
+    ),
+    role_lbl = factor(role_lbl, levels = ROLE_BREAKS)
+  ) %>%
+  filter(!is.na(role_lbl)) %>%
+  select(experiment, role_lbl, response)
+
+df_exp3_min <- response_data_exp3 %>%
+  filter(!is.na(role), !is.na(response)) %>%
+  mutate(
+    experiment = "Experiment 3",
+    role_lbl = case_when(
+      role == "mentor"      ~ "root (with knowledge)",
+      role == "mentee"      ~ "dependent",
+      role == "independent" ~ "independent",
+      TRUE ~ NA_character_
+    ),
+    role_lbl = factor(role_lbl, levels = ROLE_BREAKS)
+  ) %>%
+  filter(!is.na(role_lbl)) %>%
+  select(experiment, role_lbl, response)
+
+df_all <- bind_rows(df_exp1_min, df_exp2_min, df_exp3_min)
+
+means_ci_tbl <- df_all %>%
+  group_by(experiment, role_lbl) %>%
+  summarise(
+    n = sum(!is.na(response)),
+    mean = mean(response, na.rm = TRUE),
+    ci = list(boot_mean_ci(response)),
+    .groups = "drop"
+  ) %>%
+  unnest_wider(ci) %>%
+  rename(ci_lower = lower, ci_upper = upper) %>%
+  mutate(
+    mean = round(mean, 2),
+    ci_lower = round(ci_lower, 2),
+    ci_upper = round(ci_upper, 2)
+  ) %>%
+  arrange(experiment, role_lbl)
+
+knitr::kable(
+  means_ci_tbl %>% select(experiment, role_lbl, mean, ci_lower, ci_upper),
+  caption = "Means and bootstrap 95% CIs by role and experiment"
+)
+
+```
+
+# Mixed effect model for exp 1
+```{r}
+fit_model_one_exp1 = brm(
+  formula = response ~ 1 + detailed_role + number_yes_votes + (1|id),
+  
+  data = response_data_exp1,
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_model_one_exp1",
+  chain =8
+)
+
+summary(fit_model_one_exp1)
+```
+```{r}
+emm_role <- emmeans(
+  fit_model_one_exp1,
+  ~ detailed_role,
+)
+
+pairs_role<-pairs(emm_role)
+pairs_role
+
+```
+# Mixed effect model for exp 2
+```{r}
+
+fit_model_one_exp2 <- brm(
+  formula = response ~ 1 + role + number_yes + (1 | id),
+  data = response_data_exp2,
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_model_one_exp2",
+  chain = 8
+)
+
+summary(fit_model_one_exp2)
+
+```
+```{r}
+emm_role <- emmeans(
+  fit_model_one_exp2,
+  ~ role,
+)
+
+pairs_role<-pairs(emm_role)
+pairs_role
+```
+# Mixed effect model for exp 3
+```{r}
+response_data_exp3 <- response_data_exp3 %>%
+  mutate(
+    role = factor(role),
+    role = relevel(role, ref = "mentor")   
+  )
+fit_model_exp3 = brm(
+  formula = response ~ 1 + role + outcome + n_votes + (1|id),
+  
+  data = response_data_exp3,
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_model_exp3",
+  chain =8
+)
+
+summary(fit_model_exp3)
+
+```
+```{r}
+emm_role <- emmeans(
+  fit_model_exp3,
+  ~ role,
+)
+
+pairs_role<-pairs(emm_role)
+pairs_role
+
+```
+
+
+

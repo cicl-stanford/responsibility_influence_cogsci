@@ -24,6 +24,7 @@ Preregistrations for all experiments are available on the Open Science Framework
 
 ```
 ├── analysis
+│   ├── cache
 ├── data
 │   ├── experiment1
 │   ├── experiment2
