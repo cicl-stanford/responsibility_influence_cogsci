@@ -155,7 +155,7 @@ make_role_barplot_raw <- function(df,
       panel.grid.major.x = element_blank(),
       panel.grid.minor.x = element_blank(),
       panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
-      panel.grid.minor.y = element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.minor.y = element_blank(),
       axis.text.y = element_text(size = 25),
       axis.title.y = element_text(size = 25),
       plot.title = element_text(size = 32, face = "bold", hjust = 0.5),
@@ -388,7 +388,7 @@ make_prop_barplot_raw <- function(df,
       panel.grid.minor.x = element_blank(),
 
       panel.grid.major.y = element_line(color = "grey80", linewidth = 0.5),
-      panel.grid.minor.y = element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.minor.y = element_blank(),
 
       axis.text.y  = element_text(size = 25),
       axis.title.y = element_text(size = 25),
@@ -436,6 +436,7 @@ patched_follow_prop <- (p1 | p2 | p3) +
 
 patched_follow_prop
 ```
+
 ```{r}
 ggsave(
   filename = file.path(out_dir, "results_proportion.pdf"),
@@ -489,6 +490,47 @@ prop_stats_all %>%
   ) %>%
   select(exp, prop_lbl, report)
 ```
+
+```{r}
+fit_proportion_exp1 = brm(
+  formula = response ~ 1 + follow_proportion + (1|id),
+  data = response_data_exp1 %>% filter(role=="root"),
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_proportion_exp1",
+  chains = 8
+)
+
+summary(fit_proportion_exp1)
+```
+```{r}
+fit_proportion_exp2 = brm(
+  formula = response ~ 1 + follow_proportion + (1|id),
+  data = response_data_exp2 %>% filter(role=="root"),
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_proportion_exp2",
+  chains = 8
+)
+
+summary(fit_proportion_exp2)
+```
+
+```{r}
+fit_proportion_exp3 = brm(
+  formula = response ~ 1 + follow_proportion + (1|id),
+  data = response_data_exp3 %>%
+    filter(role == "mentor") %>%
+    mutate(follow_proportion = as.numeric(as.character(follow_proportion)) / 100),
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_proportion_exp3",
+  chains = 8
+)
+
+summary(fit_proportion_exp3)
+```
+
 
 # Means and bootstrap 95% CIs by role and experiment
 ```{r}
@@ -587,7 +629,7 @@ fit_model_one_exp1 = brm(
   data = response_data_exp1,
   iter = 9000,
   seed = 1,
-  file = "cache/fit_model_one_exp1",
+  file = "cache/fit_model_exp1",
   chain =8
 )
 
@@ -611,7 +653,7 @@ fit_model_one_exp2 <- brm(
   data = response_data_exp2,
   iter = 9000,
   seed = 1,
-  file = "cache/fit_model_one_exp2",
+  file = "cache/fit_model_exp2",
   chain = 8
 )
 
@@ -634,9 +676,9 @@ response_data_exp3 <- response_data_exp3 %>%
     role = factor(role),
     role = relevel(role, ref = "mentor")   
   )
+
 fit_model_exp3 = brm(
   formula = response ~ 1 + role + outcome + n_votes + (1|id),
-  
   data = response_data_exp3,
   iter = 9000,
   seed = 1,
@@ -658,5 +700,115 @@ pairs_role
 
 ```
 
+# Exploratory Analyses
+## Experiment 1
+### Mixed effect model (random slopes) for exp 1
+```{r}
+fit_model_exp1_exploratory = brm(
+  formula = response ~ 1 + detailed_role + number_yes_votes +  (1 + detailed_role + number_yes_votes| id),
+  data = response_data_exp1,
+  iter = 2000,
+  seed = 1,
+  file = "cache/fit_model_exp1_exploratory",
+  chain = 6
+)
 
+summary(fit_model_exp1_exploratory)
+```
+```{r}
+emm_role <- emmeans(
+  fit_model_exp1_exploratory,
+  ~ detailed_role,
+)
 
+pairs_role<-pairs(emm_role)
+pairs_role
+
+```
+### follow_proportion
+```{r}
+fit_proportion_exp1_exploratory = brm(
+  formula = response ~ 1 + follow_proportion + (1 + follow_proportion|id),
+  data = response_data_exp1 %>% filter(role=="root"),
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_proportion_exp1_exploratory",
+  chains = 8
+)
+summary(fit_proportion_exp1_exploratory)
+```
+## Experiment 2
+### Mixed effect model (random slopes) for exp 2
+```{r}
+fit_model_exp2_exploratory = brm(
+  formula = response ~ 1 + role + number_yes +  (1 + role + number_yes| id),
+  data = response_data_exp2,
+  iter = 2000,
+  seed = 1,
+  file = "cache/fit_model_exp2_exploratory",
+  chain = 6
+)
+
+summary(fit_model_exp2_exploratory)
+```
+```{r}
+emm_role <- emmeans(
+  fit_model_exp2_exploratory,
+  ~ role,
+)
+
+pairs_role<-pairs(emm_role)
+pairs_role
+```
+###follow_proportion
+```{r}
+fit_proportion_exp2_exploratory = brm(
+  formula = response ~ 1 + follow_proportion + (1 + follow_proportion|id),
+  data = response_data_exp2 %>% filter(role=="root"),
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_proportion_exp2_exploratory",
+  chains = 8
+)
+summary(fit_proportion_exp2_exploratory)
+```
+
+## Experiment 3
+### Mixed effect model (random slopes) for exp 3
+```{r}
+fit_model_exp3_exploratory = brm(
+  formula = response ~ 1 + role + outcome + n_votes + (1 + role + outcome + n_votes|id),
+  data = response_data_exp3,
+  iter = 2000,
+  seed = 1,
+  file = "cache/fit_model_exp3_exploratory",
+  chain = 6
+)
+
+summary(fit_model_exp3_exploratory)
+```
+```{r}
+emm_role <- emmeans(
+  fit_model_exp3_exploratory,
+  ~ role,
+)
+
+pairs_role<-pairs(emm_role)
+pairs_role
+```
+
+###follow_proportion
+```{r}
+fit_proportion_exp3_exploratory = brm(
+  formula = response ~ 1 + follow_proportion + (1 + follow_proportion|id),
+  data = response_data_exp3 %>%
+    filter(role == "mentor") %>%
+    mutate(follow_proportion = as.numeric(as.character(follow_proportion)) / 100),
+  iter = 9000,
+  seed = 1,
+  file = "cache/fit_proportion_exp3_exploratory",
+  chains = 8
+)
+
+summary(fit_proportion_exp3_exploratory)
+```
