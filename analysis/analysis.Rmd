@@ -439,7 +439,7 @@ patched_follow_prop
 
 ```{r}
 ggsave(
-  filename = file.path(out_dir, "results_proportion.pdf"),
+  filename = file.path(out_dir, "follower_proportion.pdf"),
   plot = patched_follow_prop,
   width = 25,
   height = 8,
