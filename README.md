@@ -15,9 +15,9 @@ Collective outcomes often result from complex social dynamics where individuals 
 
 Preregistrations for all experiments are available on the Open Science Framework (OSF):
 
-- [Experiment 1](https://osf.io/7n983/overview?view_only=19eec2fe6c124a8b9edac1eb9970e68a) (visible voting)
-- [Experiment 2](https://osf.io/6f749/overview?view_only=e21cd41c7d6a44aebf2b29ae017b584a) (mechanical system)
-- [Experiment 3](https://osf.io/a5ntq/overview?view_only=5a1b27245a914b79a09f327673c832af) (advised voting)
+- [Experiment 1](https://osf.io/7n983/) (visible voting)
+- [Experiment 2](https://osf.io/6f749/) (mechanical system)
+- [Experiment 3](https://osf.io/a5ntq/) (advised voting)
 
 
 ## Repository structure
